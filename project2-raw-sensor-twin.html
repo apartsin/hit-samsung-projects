@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RAW Sensor Digital Twin</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="page">
+
+<header class="masthead">
+<div class="crumbs"><a href="index.html">HIT &times; Samsung projects</a> / Project 2</div>
+<h1>RAW Sensor Digital Twin</h1>
+<p class="lede">A neural model that predicts the exact <a href="https://en.wikipedia.org/wiki/Raw_image_format">RAW</a> mosaic a given camera sensor would record, before <a href="https://en.wikipedia.org/wiki/Demosaicing">demosaicing</a>, from an input image, the capture conditions, and the sensor and lens parameters.</p>
+
+<dl class="facts">
+  <div><dt>Credit</dt><dd>7 points</dd></div>
+  <div><dt>Team</dt><dd>Up to 3 students</dd></div>
+  <div><dt>Partners</dt><dd>HIT and Samsung</dd></div>
+  <div><dt>Area</dt><dd>Computational imaging, deep learning</dd></div>
+</dl>
+</header>
+
+<p class="research"><strong>A research project for an industry customer.</strong> There is no ready recipe: the team defines the details of the method, reads the literature, tries ideas, measures, and learns from what does not work. The project requires independent work, proactive exploration and a lot of trial and error, with regular reporting to the supervisor and the Samsung mentor.</p>
+
+<h2>Description</h2>
+<p>A camera sensor does not record a color image. Each pixel sits under one color filter (red, green or blue, in a <a href="https://en.wikipedia.org/wiki/Bayer_filter">Bayer pattern</a>) and counts photons, adding noise from the physics of light and from the electronics. The camera's <a href="https://en.wikipedia.org/wiki/Image_processor">image signal processor</a> (ISP) later turns this RAW mosaic into the photo we see.</p>
+<p>Students build a <strong><a href="https://en.wikipedia.org/wiki/Digital_twin">digital twin</a></strong> of this first stage: a model that answers "what would this sensor have recorded?" for a scene, under given settings, before any processing.</p>
+
+<div class="spec">
+  <p><strong>Input:</strong> an image of the scene (<a href="https://en.wikipedia.org/wiki/SRGB">sRGB</a> or linear), plus</p>
+  <p>&bull; <strong>Capture conditions:</strong> <a href="https://en.wikipedia.org/wiki/Shutter_speed">exposure time</a>, ISO (analog gain), <a href="https://en.wikipedia.org/wiki/F-number">f-number</a>, <a href="https://en.wikipedia.org/wiki/Focal_length">focal length</a>, <a href="https://en.wikipedia.org/wiki/Standard_illuminant">illuminant</a> and <a href="https://en.wikipedia.org/wiki/Color_temperature">color temperature</a>, scene brightness.</p>
+  <p>&bull; <strong>Sensor parameters:</strong> <a href="https://en.wikipedia.org/wiki/Color_filter_array">CFA</a> pattern, pixel pitch, <a href="https://en.wikipedia.org/wiki/Spectral_sensitivity">spectral sensitivity</a>, <a href="https://en.wikipedia.org/wiki/Active-pixel_sensor">full-well capacity</a>, <a href="https://en.wikipedia.org/wiki/Image_noise">read noise</a>, <a href="https://en.wikipedia.org/wiki/Dark_current_(physics)">dark current</a>, black level, bit depth.</p>
+  <p>&bull; <strong>Optics parameters:</strong> lens blur (<a href="https://en.wikipedia.org/wiki/Point_spread_function">PSF</a> or <a href="https://en.wikipedia.org/wiki/Optical_transfer_function">MTF</a>), <a href="https://en.wikipedia.org/wiki/Vignetting">vignetting</a>, <a href="https://en.wikipedia.org/wiki/Chromatic_aberration">chromatic aberration</a>.</p>
+  <p><strong>Output:</strong> a single-channel RAW Bayer mosaic with realistic signal, clipping, <a href="https://en.wikipedia.org/wiki/Quantization_(image_processing)">quantization</a> and noise, matching what the real sensor produces.</p>
+</div>
+
+<p>The project combines two worlds: a <strong>physics model</strong> of the camera (light falling off at the edges, the response of each color channel, shot and read noise, clipping) and a <strong>learned model</strong> that corrects what the physics misses. The physics part keeps the output plausible for unseen settings; the learned part makes it match real data.</p>
+
+<h2>Motivation</h2>
+<ul>
+  <li><strong>Training data for camera AI.</strong> Denoising, demosaicing and low-light models need large amounts of RAW data from a specific sensor. Capturing it is slow and expensive; a twin can generate it from ordinary photos.</li>
+  <li><strong>Designing the next sensor.</strong> Engineers can ask "how would images look with smaller pixels, more read noise, or a different color filter?" before the silicon exists.</li>
+  <li><strong>Testing the ISP.</strong> A twin lets the full <a href="https://en.wikipedia.org/wiki/Color_image_pipeline">camera pipeline</a> be tested on thousands of virtual captures with controlled conditions.</li>
+  <li><strong>Current research.</strong> Models that convert RGB back to RAW using camera settings, such as ParamISP (CVPR 2024, with Samsung co-authors), show the field is active and has open questions.</li>
+</ul>
+
+<h2>Goals and deliverables</h2>
+<ol>
+  <li>A <strong>physics-based simulator</strong> in <a href="https://pytorch.org/">PyTorch</a>: inverse tone and color processing, lens effects, spectral to CFA mapping, signal-dependent noise, clipping and quantization, all controlled by parameters.</li>
+  <li><strong>Sensor calibration:</strong> noise parameters (per ISO) estimated from public data or from flat-field and dark frames, following the <a href="https://www.emva.org/standards-technology/emva-1288/">EMVA 1288</a> method.</li>
+  <li>A <strong>learned twin</strong>: a network conditioned on the capture and sensor parameters that refines the simulator output (or replaces part of it) to match real RAW captures.</li>
+  <li>An <strong>evaluation</strong> on held-out real RAW images: pixel accuracy, noise statistics, and a downstream test (a denoiser trained on twin data vs. real data).</li>
+  <li>Optional: a small <strong>"what-if" tool</strong> that shows how one scene changes as sensor parameters change.</li>
+</ol>
+
+<h2>Suggested approach</h2>
+<ul>
+  <li><strong>Start from <a href="https://arxiv.org/abs/1811.11127">Unprocessing</a></strong> (Brooks et al.): invert tone mapping, <a href="https://en.wikipedia.org/wiki/Gamma_correction">gamma</a>, color correction and <a href="https://en.wikipedia.org/wiki/Color_balance">white balance</a> to get linear RGB, then mosaic it.</li>
+  <li><strong>Add physics:</strong> lens vignetting and blur, exposure scaling from exposure time, ISO and f-number, then a Poisson-Gaussian noise model (<a href="https://en.wikipedia.org/wiki/Shot_noise">shot noise</a> plus read noise), and later the richer ELD model (row noise, quantization, dark current).</li>
+  <li><strong>Condition a network</strong> (<a href="https://en.wikipedia.org/wiki/U-Net">U-Net</a> with <a href="https://arxiv.org/abs/1709.07871">FiLM</a> conditioning or a small transformer) on the parameter vector, as ParamISP does, to learn the residual between simulated and real RAW.</li>
+  <li><strong>Learn the noise</strong> with a <a href="https://en.wikipedia.org/wiki/Generative_model">generative model</a> (<a href="https://en.wikipedia.org/wiki/Flow-based_generative_model">normalizing flow</a> as in Noise Flow, or <a href="https://en.wikipedia.org/wiki/Diffusion_model">diffusion</a> as in RAW-Diffusion and NoiseDiff) so that the noise distribution matches, not just its mean.</li>
+  <li><strong>Train and test across ISO and exposure</strong> so the twin works at settings that were not in the training set.</li>
+</ul>
+
+<h2>What students will need</h2>
+<p>A map of the concepts, methods and tools this project touches. The first weeks are for learning the essentials.</p>
+<div class="skills">
+  <div class="skill"><h4>Concepts</h4><ul>
+    <li><a href="https://en.wikipedia.org/wiki/Image_formation">Image formation</a>: photons, <a href="https://en.wikipedia.org/wiki/Quantum_efficiency">quantum efficiency</a>, exposure</li>
+    <li><a href="https://en.wikipedia.org/wiki/Active-pixel_sensor">CMOS sensor</a> operation, Bayer <a href="https://en.wikipedia.org/wiki/Color_filter_array">CFA</a>, <a href="https://en.wikipedia.org/wiki/Bayer_filter">quad Bayer</a></li>
+    <li>The camera <a href="https://en.wikipedia.org/wiki/Image_processor">ISP</a>: black level, <a href="https://en.wikipedia.org/wiki/Color_balance">white balance</a>, <a href="https://en.wikipedia.org/wiki/Demosaicing">demosaicing</a>, color matrix, <a href="https://en.wikipedia.org/wiki/Tone_mapping">tone curve</a>, <a href="https://en.wikipedia.org/wiki/Gamma_correction">gamma</a></li>
+    <li>Linear vs. display <a href="https://en.wikipedia.org/wiki/Color_space">color spaces</a>, <a href="https://en.wikipedia.org/wiki/Spectral_sensitivity">spectral sensitivity</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Image_noise">Noise sources</a>: shot, read, <a href="https://en.wikipedia.org/wiki/Dark_current_(physics)">dark current</a>, row noise, <a href="https://en.wikipedia.org/wiki/Quantization_(image_processing)">quantization</a></li>
+    <li>Optics: <a href="https://en.wikipedia.org/wiki/Point_spread_function">PSF</a>, <a href="https://en.wikipedia.org/wiki/Optical_transfer_function">MTF</a>, <a href="https://en.wikipedia.org/wiki/Vignetting">vignetting</a>, <a href="https://en.wikipedia.org/wiki/Chromatic_aberration">chromatic aberration</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Exif">EXIF</a> and <a href="https://en.wikipedia.org/wiki/Digital_Negative">DNG</a> metadata</li>
+  </ul></div>
+  <div class="skill"><h4>Algorithms and techniques</h4><ul>
+    <li>Inverse ISP (unprocessing)</li>
+    <li>Poisson-Gaussian and physics-based noise models</li>
+    <li>Noise calibration: <a href="https://www.emva.org/standards-technology/emva-1288/">photon transfer curve</a>, noise level function</li>
+    <li>Conditional networks (<a href="https://arxiv.org/abs/1709.07871">FiLM</a>, parameter embeddings)</li>
+    <li>Generative modeling of noise: <a href="https://en.wikipedia.org/wiki/Flow-based_generative_model">normalizing flows</a>, <a href="https://en.wikipedia.org/wiki/Diffusion_model">diffusion</a></li>
+    <li>Differentiable simulation, hybrid physics + learning</li>
+    <li>Image alignment for paired data</li>
+  </ul></div>
+  <div class="skill"><h4>Models</h4><ul>
+    <li><a href="https://en.wikipedia.org/wiki/U-Net">U-Net</a>, residual <a href="https://en.wikipedia.org/wiki/Convolutional_neural_network">CNNs</a></li>
+    <li><a href="https://github.com/swz30/CycleISP">CycleISP</a>, <a href="https://openaccess.thecvf.com/content/CVPR2021/html/Xing_Invertible_Image_Signal_Processing_CVPR_2021_paper.html">InvISP</a>, <a href="https://arxiv.org/abs/2312.13313">ParamISP</a> (reverse ISP)</li>
+    <li><a href="https://github.com/AbdoKamel/noise_flow">Noise Flow</a>, <a href="https://github.com/Vandermode/ELD">ELD</a>, <a href="https://openaccess.thecvf.com/content/ICCV2023/html/Zhang_Towards_General_Low-Light_Raw_Noise_Synthesis_and_Modeling_ICCV_2023_paper.html">LRD</a> (noise models)</li>
+    <li><a href="https://arxiv.org/abs/2411.13150">RAW-Diffusion</a> (generative <a href="https://en.wikipedia.org/wiki/Raw_image_format">RAW</a>)</li>
+    <li>Denoisers for the downstream test (e.g. U-Net from <a href="https://github.com/cchen156/Learning-to-See-in-the-Dark">SID</a>)</li>
+  </ul></div>
+  <div class="skill"><h4>Evaluation</h4><ul>
+    <li><a href="https://en.wikipedia.org/wiki/Peak_signal-to-noise_ratio">PSNR</a> and <a href="https://en.wikipedia.org/wiki/Structural_similarity_index_measure">SSIM</a> in the RAW domain</li>
+    <li><a href="https://en.wikipedia.org/wiki/Kullback%E2%80%93Leibler_divergence">KL divergence</a> of noise <a href="https://en.wikipedia.org/wiki/Image_histogram">histograms</a> per ISO and channel</li>
+    <li>Noise level function and photon transfer curve match</li>
+    <li>Downstream test: denoiser trained on twin vs. real data</li>
+  </ul></div>
+  <div class="skill"><h4>Tools and frameworks</h4><ul>
+    <li><a href="https://www.python.org/">Python</a>, <a href="https://pytorch.org/">PyTorch</a>, <a href="https://numpy.org/">NumPy</a></li>
+    <li><a href="https://github.com/letmaik/rawpy">rawpy</a> (<a href="https://www.libraw.org/">LibRaw</a>) for reading RAW and DNG</li>
+    <li><a href="https://www.colour-science.org/">colour-science</a>, <a href="https://github.com/colour-science/colour-demosaicing">colour-demosaicing</a></li>
+    <li><a href="https://kornia.readthedocs.io/">kornia</a> <code>rgb_to_raw</code> / <code>raw_to_rgb</code></li>
+    <li><a href="https://github.com/AbdoKamel/simple-camera-pipeline">simple-camera-pipeline</a> (<a href="https://abdokamel.github.io/sidd/">SIDD</a> rendering)</li>
+    <li><a href="https://github.com/ISET/isetcam">ISETCam</a> (MATLAB) as a reference simulator</li>
+    <li><a href="https://exiftool.org/">exiftool</a>, <a href="https://git-scm.com/">Git</a>, <a href="https://wandb.ai/site">Weights &amp; Biases</a></li>
+  </ul></div>
+</div>
+
+<h2>Datasets</h2>
+<h3>Paired RAW and RGB with capture metadata</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Dataset</th><th>Sensors</th><th>Content</th><th>Use here</th></tr></thead>
+<tbody>
+<tr><td><a href="https://abdokamel.github.io/sidd/">SIDD</a></td><td>5 phones incl. Samsung Galaxy S6 Edge</td><td>Noisy and clean RAW + sRGB, noise level functions, metadata; ~24k images in the full set <span class="tag">MIT</span></td><td>Main smartphone set; noise calibration</td></tr>
+<tr><td><a href="https://arxiv.org/abs/1801.06724">S7-ISP (DeepISP)</a></td><td>Samsung Galaxy S7</td><td>110 scenes, RAW + JPEG, normal and low-light</td><td>Samsung RAW to RGB pairs</td></tr>
+<tr><td><a href="https://www.vision.ee.ethz.ch/~ihnatova/pynet.html">Zurich RAW-to-RGB</a></td><td>Huawei P20 + Canon 5D IV</td><td>~10k aligned patch pairs <span class="tag">CC BY-NC-SA</span></td><td>Phone RAW with high-quality RGB</td></tr>
+<tr><td><a href="https://github.com/cchen156/Learning-to-See-in-the-Dark">SID</a></td><td>Sony a7S II, Fujifilm X-T2</td><td>5,094 short-exposure RAW + long-exposure references</td><td>Low-light, exposure scaling</td></tr>
+<tr><td><a href="https://github.com/Vandermode/ELD">ELD</a></td><td>4 cameras</td><td>Low-light RAW at several ISO, released noise parameters</td><td>Physics noise calibration</td></tr>
+<tr><td><a href="https://github.com/happycaoyue/LLD">Cao 2023 (LLD)</a></td><td>-</td><td>Noisy/clean pairs + flat-field and bias frames over a wide ISO range</td><td>ISO-dependent noise modeling</td></tr>
+<tr><td><a href="https://data.csail.mit.edu/graphics/fivek">MIT-Adobe FiveK</a></td><td>Several DSLRs</td><td>5,000 <a href="https://en.wikipedia.org/wiki/Digital_Negative">DNG</a> RAW + expert retouches</td><td>Large RAW pool with <a href="https://en.wikipedia.org/wiki/Exif">EXIF</a></td></tr>
+<tr><td><a href="https://loki.disi.unitn.it/RAISE/">RAISE</a></td><td>3 Nikon cameras</td><td>8,156 uncompressed RAW + metadata</td><td>Varied scenes and settings</td></tr>
+<tr><td><a href="https://arxiv.org/abs/2106.13883">Raw-to-raw</a></td><td>Galaxy S9, iPhone X</td><td>Paired and unpaired RAW between two phones</td><td>Mapping between sensors</td></tr>
+<tr><td><a href="https://people.ee.ethz.ch/~ihnatova/microisp.html">Fujifilm UltraISP</a>, <a href="https://arxiv.org/abs/2105.07809">MAI 2021</a></td><td>Phone sensors (incl. Sony IMX586 quad Bayer)</td><td>RAW with reference RGB</td><td>Learned ISP challenge data</td></tr>
+</tbody>
+</table></div>
+
+<h3>Color and spectral data</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Dataset</th><th>Content</th><th>Use here</th></tr></thead>
+<tbody>
+<tr><td><a href="https://zenodo.org/records/3245883">Camera spectral sensitivity database</a> (Jiang 2013)</td><td>28 cameras incl. mobile, 400 to 720 nm</td><td>Spectral to CFA response</td></tr>
+<tr><td><a href="https://cvil.eecs.yorku.ca/projects/public_html/illuminant/illuminant.html">NUS 8-camera</a></td><td>1,736 linear RAW images with illuminant ground truth</td><td>Illuminant conditioning, cross-camera color</td></tr>
+<tr><td><a href="https://www.fer.unizg.hr/ipg/resources/color_constancy/">Cube+</a>, <a href="https://www2.cs.sfu.ca/~colour/data/shi_gehler/">Gehler-Shi</a></td><td>RAW with measured illuminant</td><td>White balance modeling</td></tr>
+</tbody>
+</table></div>
+
+<h3>Challenges with ready data and code</h3>
+<ul>
+  <li><a href="https://arxiv.org/abs/2210.11153">AIM 2022 Reverse ISP</a> (Samsung S7 and Huawei P20 Pro tracks).</li>
+  <li><a href="https://arxiv.org/abs/2506.01947">NTIRE 2025 RAW reconstruction from smartphone RGB</a>, <a href="https://arxiv.org/abs/2506.02197">NTIRE 2025 RAW restoration</a>, <a href="https://arxiv.org/abs/2404.16223">NTIRE 2024 RAW super-resolution</a>.</li>
+  <li><a href="https://arxiv.org/abs/2510.06601">AIM 2025 real-world RAW denoising</a> (trained on <a href="https://en.wikipedia.org/wiki/Synthetic_data">synthetic</a> noise).</li>
+  <li>Organizer code: <a href="https://github.com/mv-lab/AISP">mv-lab/AISP</a>.</li>
+</ul>
+<p class="note"><strong>Samsung data:</strong> no public dataset of ISOCELL sensor RAW captures exists. Calibration captures from a Samsung sensor, if Samsung can provide them, would make the twin far more valuable.</p>
+
+<h2>Relevant papers</h2>
+<h3>Reverse ISP: from RGB back to RAW</h3>
+<ol class="refs">
+  <li>Brooks et al. <a href="https://github.com/timothybrooks/unprocessing">Unprocessing Images for Learned Raw Denoising</a>. <span class="venue">CVPR 2019.</span> The standard starting point.</li>
+  <li>Zamir et al. <a href="https://github.com/swz30/CycleISP">CycleISP: Real Image Restoration via Improved Data Synthesis</a>. <span class="venue">CVPR 2020.</span></li>
+  <li>Xing, Qian, Chen. <a href="https://openaccess.thecvf.com/content/CVPR2021/html/Xing_Invertible_Image_Signal_Processing_CVPR_2021_paper.html">Invertible Image Signal Processing</a>. <span class="venue">CVPR 2021.</span></li>
+  <li>Conde et al. <a href="https://ojs.aaai.org/index.php/AAAI/article/view/19926">Model-Based Image Signal Processors via Learnable Dictionaries</a>. <span class="venue">AAAI 2022.</span></li>
+  <li>Nam, Punnappurath, Brubaker, Brown. <a href="https://openaccess.thecvf.com/content/CVPR2022/html/Nam_Learning_sRGB-to-Raw-RGB_De-Rendering_With_Content-Aware_Metadata_CVPR_2022_paper.html">Learning sRGB-to-Raw-RGB De-rendering with Content-Aware Metadata</a>. <span class="venue">CVPR 2022.</span> York University and Samsung AI Center Toronto.</li>
+  <li>Kim et al. <a href="https://arxiv.org/abs/2312.13313">ParamISP: Learned Forward and Inverse ISPs using Camera Parameters</a>. <span class="venue">CVPR 2024.</span> Closest prior work; conditions on exposure, ISO, <a href="https://en.wikipedia.org/wiki/Aperture">aperture</a>, focal length.</li>
+  <li>Reinders et al. <a href="https://arxiv.org/abs/2411.13150">RAW-Diffusion: RGB-Guided Diffusion Models for High-Fidelity RAW Image Generation</a>. <span class="venue">WACV 2025.</span></li>
+  <li>Yu et al. <a href="https://www.mmlab-ntu.com/project/reconfigisp/">ReconfigISP</a>. <span class="venue">ICCV 2021.</span> Differentiable ISP modules.</li>
+</ol>
+<h3>Sensor noise modeling</h3>
+<ol class="refs" start="9">
+  <li>Foi et al. Practical Poissonian-Gaussian Noise Modeling and Fitting for Single-Image Raw-Data. <span class="venue">IEEE TIP 2008.</span></li>
+  <li>Abdelhamed, Lin, Brown. <a href="https://openaccess.thecvf.com/content_cvpr_2018/papers/Abdelhamed_A_High-Quality_Denoising_CVPR_2018_paper.pdf">A High-Quality Denoising Dataset for Smartphone Cameras (SIDD)</a>. <span class="venue">CVPR 2018.</span></li>
+  <li>Abdelhamed et al. <a href="https://github.com/AbdoKamel/noise_flow">Noise Flow: Noise Modeling with Conditional Normalizing Flows</a>. <span class="venue">ICCV 2019.</span></li>
+  <li>Wei et al. <a href="https://openaccess.thecvf.com/content_CVPR_2020/html/Wei_A_Physics-Based_Noise_Formation_Model_for_Extreme_Low-Light_Raw_Denoising_CVPR_2020_paper.html">A Physics-based Noise Formation Model for Extreme Low-light Raw Denoising (ELD)</a>. <span class="venue">CVPR 2020; TPAMI.</span></li>
+  <li>Zhang et al. <a href="https://arxiv.org/abs/2110.04756">Rethinking Noise Synthesis and Modeling in Raw Denoising</a>. <span class="venue">ICCV 2021.</span></li>
+  <li>Monakhova et al. <a href="https://openaccess.thecvf.com/content/CVPR2022/html/Monakhova_Dancing_Under_the_Stars_Video_Denoising_in_Starlight_CVPR_2022_paper.html">Dancing under the Stars: Video Denoising in Starlight</a>. <span class="venue">CVPR 2022.</span></li>
+  <li>Feng et al. <a href="https://github.com/megvii-research/PMN">Learnability Enhancement for Low-light Raw Denoising (PMN)</a>. <span class="venue">ACM MM 2022.</span></li>
+  <li>Cao et al. <a href="https://openaccess.thecvf.com/content/CVPR2023/html/Cao_Physics-Guided_ISO-Dependent_Sensor_Noise_Modeling_for_Extreme_Low-Light_Photography_CVPR_2023_paper.html">Physics-Guided ISO-Dependent Sensor Noise Modeling for Extreme Low-Light Photography</a>. <span class="venue">CVPR 2023.</span></li>
+  <li>Zhang et al. <a href="https://openaccess.thecvf.com/content/ICCV2023/html/Zhang_Towards_General_Low-Light_Raw_Noise_Synthesis_and_Modeling_ICCV_2023_paper.html">Towards General Low-Light Raw Noise Synthesis and Modeling (LRD)</a>. <span class="venue">ICCV 2023.</span></li>
+  <li>Jin et al. <a href="https://github.com/Srameo/LED">Lighting Every Darkness in Two Pairs (LED)</a>. <span class="venue">ICCV 2023.</span></li>
+  <li>Lu, Achddou, S&uuml;sstrunk. <a href="https://arxiv.org/abs/2503.11262">Dark Noise Diffusion (NoiseDiff)</a>. <span class="venue">2025.</span></li>
+  <li>Li, Jiang, Iso. <a href="https://arxiv.org/abs/2505.00045">Noise Modeling in One Hour</a>. <span class="venue">arXiv 2025.</span></li>
+</ol>
+<h3>Simulators, optics and standards</h3>
+<ol class="refs" start="21">
+  <li><a href="https://github.com/ISET/isetcam">ISETCam</a> (Wandell, Farrell et al., Stanford). Full camera simulator in MATLAB; a reference to compare against.</li>
+  <li>Sitzmann et al. <a href="https://www.cs.princeton.edu/~fheide/papers/DeepOptics.pdf">End-to-end Optimization of Optics and Image Processing (Deep Optics)</a>. <span class="venue">SIGGRAPH 2018.</span></li>
+  <li>Chen et al. <a href="https://openaccess.thecvf.com/content/ICCV2021/html/Chen_Extreme-Quality_Computational_Imaging_via_Degradation_Framework_ICCV_2021_paper.html">Extreme-Quality Computational Imaging via Degradation Framework</a>. <span class="venue">ICCV 2021.</span> Spatially varying lens PSFs of mobile cameras.</li>
+  <li>Schwartz, Giryes, Bronstein. <a href="https://arxiv.org/abs/1801.06724">DeepISP: Toward Learning an End-to-End Image Processing Pipeline</a>. <span class="venue">IEEE TIP 2019.</span></li>
+  <li><a href="https://www.emva.org/wp-content/uploads/EMVA1288Linear_4.0Release.pdf">EMVA 1288 Release 4.0</a>. Standard for measuring sensor parameters (<a href="https://en.wikipedia.org/wiki/Quantum_efficiency">quantum efficiency</a>, gain, dark noise).</li>
+</ol>
+
+<h2>Prerequisites</h2>
+<ul>
+  <li><strong>Required:</strong> prior knowledge of deep learning and PyTorch, from a completed course or a significant project (training a network, writing a Dataset and DataLoader, a training loop).</li>
+  <li><strong>Required:</strong> good <a href="https://www.python.org/">Python</a> and <a href="https://numpy.org/">NumPy</a>.</li>
+  <li><strong>Recommended:</strong> a course in image processing or signal processing; basic probability (noise distributions). Interest in physics and cameras helps.</li>
+</ul>
+<p>Compute: a GPU with 12 GB or more.</p>
+
+<footer>HIT &times; Samsung joint student projects, academic year 2026/27. Supervisor: Alexander Apartsin (HIT). Samsung mentor: to be assigned.</footer>
+</main>
+</body>
+</html>

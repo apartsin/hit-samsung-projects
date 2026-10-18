@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Patch Quality Scanner</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="page">
+
+<header class="masthead">
+<div class="crumbs"><a href="index.html">HIT &times; Samsung projects</a> / Project 1</div>
+<h1>Patch Quality Scanner</h1>
+<p class="lede">A deep learning model that scans a camera image in small patches and gives each patch an overall quality score plus a severity score for five distortion families: geometry, color, light, contrast and focus.</p>
+
+<dl class="facts">
+  <div><dt>Credit</dt><dd>7 points</dd></div>
+  <div><dt>Team</dt><dd>Up to 3 students</dd></div>
+  <div><dt>Partners</dt><dd>HIT and Samsung</dd></div>
+  <div><dt>Area</dt><dd>Computer vision, image quality</dd></div>
+</dl>
+</header>
+
+<p class="research"><strong>A research project for an industry customer.</strong> There is no ready recipe: the team defines the details of the method, reads the literature, tries ideas, measures, and learns from what does not work. The project requires independent work, proactive exploration and a lot of trial and error, with regular reporting to the supervisor and the Samsung mentor.</p>
+
+<h2>Description</h2>
+<p>Students build a model that takes an image, cuts it into overlapping patches (for example 128&times;128 pixels), and returns for every patch a vector of six numbers. The result is a set of quality maps over the image: where it is sharp or blurry, where the color is off, where it is over or under exposed, where contrast is flat, and where the geometry is bent.</p>
+
+<div class="spec">
+  <p><strong>Input:</strong> an RGB image (smartphone photo, any resolution).</p>
+  <p><strong>Output per patch:</strong> <code>[quality, geometry, color, light, contrast, focus]</code>, each in 0 to 1, where 0 means no distortion of that family.</p>
+  <p><strong>Output per image:</strong> six heat maps and an overall score pooled from the patches.</p>
+</div>
+
+<p>The training data is mostly <strong><a href="https://en.wikipedia.org/wiki/Synthetic_data">synthetic</a></strong>: clean, high quality images are degraded with distortions of a known type and strength, so every patch gets an exact label for free. The model is then calibrated and tested on public datasets with human opinion scores and on real smartphone photos.</p>
+
+<h3>The five distortion families</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Family</th><th>Distortions to synthesize</th><th>Example implementations</th></tr></thead>
+<tbody>
+<tr><td>Geometry</td><td>Barrel and pincushion <a href="https://en.wikipedia.org/wiki/Distortion_(optics)">lens distortion</a>, <a href="https://en.wikipedia.org/wiki/Perspective_distortion">perspective tilt</a>, local warping, <a href="https://en.wikipedia.org/wiki/Rolling_shutter">rolling shutter</a> skew</td><td><code>cv2.initUndistortRectifyMap</code> + <code>cv2.remap</code>, <code>cv2.warpPerspective</code>, kornia <code>RandomFisheye</code>, <code>RandomPerspective</code>, <a href="https://github.com/albumentations-team/albumentations">albumentations</a> <code>OpticalDistortion</code></td></tr>
+<tr><td>Color</td><td><a href="https://en.wikipedia.org/wiki/Color_balance">White balance</a> shift, color cast, saturation change, color <a href="https://en.wikipedia.org/wiki/Quantization_(image_processing)">quantization</a>, <a href="https://en.wikipedia.org/wiki/Chromatic_aberration">chromatic aberration</a></td><td>kornia <code>RandomPlanckianJitter</code>, <code>RandomSaturation</code>; ARNIQA <code>color_shift</code>, <code>quantization</code>; <a href="https://arxiv.org/abs/1811.11127">Unprocessing</a> <code>random_gains</code></td></tr>
+<tr><td>Light</td><td>Under and over exposure, uneven illumination, <a href="https://en.wikipedia.org/wiki/Vignetting">vignetting</a>, <a href="https://en.wikipedia.org/wiki/Lens_flare">lens flare</a></td><td>ARNIQA <code>brighten</code>, <code>darken</code>; kornia <code>RandomLinearCornerIllumination</code>; albumentations <code>Vignetting</code>, <code>LensFlare</code>; Google flare dataset</td></tr>
+<tr><td>Contrast</td><td>Low and high contrast, <a href="https://en.wikipedia.org/wiki/Gamma_correction">gamma</a> and <a href="https://en.wikipedia.org/wiki/Tone_mapping">tone curve</a> changes, mean shift</td><td>kornia <code>RandomGamma</code>; ARNIQA <code>non_linear_contrast_change</code>, <code>mean_shift</code>; <a href="https://docs.pytorch.org/vision/stable/">torchvision</a> <code>adjust_gamma</code></td></tr>
+<tr><td>Focus</td><td><a href="https://en.wikipedia.org/wiki/Defocus_aberration">Defocus</a> (lens) blur, <a href="https://en.wikipedia.org/wiki/Motion_blur_(media)">motion blur</a>, <a href="https://en.wikipedia.org/wiki/Gaussian_blur">Gaussian blur</a></td><td>ARNIQA <code>lens_blur</code>, <code>motion_blur</code>; imagecorruptions <code>defocus_blur</code>; kornia <code>RandomMotionBlur</code></td></tr>
+</tbody>
+</table></div>
+
+<p class="note"><strong>Hard part:</strong> geometry is not visible inside a flat, textureless patch. No public dataset labels geometric distortion, so students generate it themselves and should study how much image context the model needs (patch size, neighbor patches, straight line cues) to detect it.</p>
+
+<h2>Motivation</h2>
+<p>Camera teams test new sensors, lenses and image processing pipelines on thousands of photos. A single quality number per image does not say <em>what</em> went wrong or <em>where</em>. A per patch, per distortion map points engineers directly at the problem: soft corners from the lens, a color cast in shadows, clipped highlights in one region. The same model can serve as an automatic judge in regression tests, a filter for training data, and a feedback signal for tuning the <a href="https://en.wikipedia.org/wiki/Color_image_pipeline">camera pipeline</a>.</p>
+<p>Recent research is moving in the same direction (models that locate a distortion, name its type and rate its severity), which makes this a current topic with room for a publishable result.</p>
+
+<h2>Goals and deliverables</h2>
+<ol>
+  <li>A <strong>distortion synthesis library</strong> in <a href="https://www.python.org/">Python</a>: one function per distortion, each with a strength parameter mapped to a 0 to 1 severity, able to mix several distortions and apply them locally (to a region) as well as globally.</li>
+  <li>A <strong>training set</strong> generated from clean images, with per patch labels.</li>
+  <li>A <strong><a href="https://en.wikipedia.org/wiki/Multi-task_learning">multi-head</a> model</strong> that outputs the six scores per patch, and a script that produces heat maps for a full image.</li>
+  <li>An <strong>evaluation report</strong>: accuracy on synthetic test data, correlation with human scores on public datasets, and a qualitative study on real smartphone photos.</li>
+  <li>Optional: an <strong>on-device version</strong> (<a href="https://onnx.ai/">ONNX</a> or <a href="https://ai.google.dev/edge/litert">TFLite</a>) with measured run time on a phone.</li>
+</ol>
+
+<h2>Suggested approach</h2>
+<ul>
+  <li><strong>Backbone:</strong> start from a pretrained <a href="https://en.wikipedia.org/wiki/Convolutional_neural_network">CNN</a> or <a href="https://en.wikipedia.org/wiki/Vision_transformer">vision transformer</a> (<a href="https://arxiv.org/abs/2201.03545">ConvNeXt</a>, <a href="https://arxiv.org/abs/1905.11946">EfficientNet</a>, ViT-S), or from an IQA pretrained encoder such as ARNIQA or CONTRIQUE.</li>
+  <li><strong>Heads:</strong> one small regression head per family plus one for overall quality; try adding a distortion type classifier as an auxiliary task (as in LIQE).</li>
+  <li><strong>Losses:</strong> regression (L1 or MSE) on severity, a <a href="https://en.wikipedia.org/wiki/Learning_to_rank">ranking loss</a> so that stronger distortion scores higher, and correlation based losses when fitting human scores.</li>
+  <li><strong>Context:</strong> compare a pure patch model with a fully convolutional or transformer model that sees the whole image and outputs a dense map.</li>
+  <li><strong>Calibration on human data:</strong> <a href="https://en.wikipedia.org/wiki/Fine-tuning_(deep_learning)">fine-tune</a> the quality head on KADID-10k and PaQ-2-PiQ patch scores; check the light, color, contrast and focus heads against SPAQ and KonIQ attribute ratings.</li>
+</ul>
+
+<h2>What students will need</h2>
+<p>A map of the concepts, methods and tools this project touches. Students are not expected to know all of it at the start; the first weeks are for learning the essentials.</p>
+<div class="skills">
+  <div class="skill"><h4>Concepts</h4><ul>
+    <li><a href="https://en.wikipedia.org/wiki/Image_formation">Image formation</a> and the <a href="https://en.wikipedia.org/wiki/Color_image_pipeline">camera pipeline</a> (<a href="https://en.wikipedia.org/wiki/Image_processor">ISP</a>)</li>
+    <li><a href="https://en.wikipedia.org/wiki/Color_space">Color spaces</a> (<a href="https://en.wikipedia.org/wiki/SRGB">sRGB</a>, linear RGB, Lab), <a href="https://en.wikipedia.org/wiki/Color_balance">white balance</a>, <a href="https://en.wikipedia.org/wiki/Gamma_correction">gamma</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Distortion_(optics)">Lens distortion</a> models (radial, tangential) and <a href="https://en.wikipedia.org/wiki/Homography_(computer_vision)">homographies</a></li>
+    <li>Blur and the <a href="https://en.wikipedia.org/wiki/Point_spread_function">point spread function</a>, <a href="https://en.wikipedia.org/wiki/Convolution">convolution</a></li>
+    <li>Full-reference vs. no-reference <a href="https://en.wikipedia.org/wiki/Image_quality">quality assessment</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Mean_opinion_score">Mean opinion score</a> (MOS), subjective testing</li>
+  </ul></div>
+  <div class="skill"><h4>Algorithms and techniques</h4><ul>
+    <li><a href="https://en.wikipedia.org/wiki/Synthetic_data">Synthetic data</a> generation with known labels</li>
+    <li><a href="https://en.wikipedia.org/wiki/Multi-task_learning">Multi-task learning</a> with several output heads</li>
+    <li>Regression, ranking and correlation losses</li>
+    <li><a href="https://en.wikipedia.org/wiki/Self-supervised_learning">Self-supervised</a> and contrastive pretraining</li>
+    <li><a href="https://en.wikipedia.org/wiki/Transfer_learning">Transfer learning</a> and fine-tuning</li>
+    <li>Sliding window inference, dense prediction, patch pooling</li>
+    <li><a href="https://en.wikipedia.org/wiki/Data_augmentation">Data augmentation</a> and <a href="https://en.wikipedia.org/wiki/Domain_adaptation">domain shift</a> handling</li>
+  </ul></div>
+  <div class="skill"><h4>Models</h4><ul>
+    <li><a href="https://en.wikipedia.org/wiki/Convolutional_neural_network">CNNs</a>: <a href="https://en.wikipedia.org/wiki/Residual_neural_network">ResNet</a>, <a href="https://arxiv.org/abs/1905.11946">EfficientNet</a>, <a href="https://arxiv.org/abs/2201.03545">ConvNeXt</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Vision_transformer">Vision transformers</a>: ViT, <a href="https://arxiv.org/abs/2103.14030">Swin</a></li>
+    <li>IQA models: <a href="https://arxiv.org/abs/1912.10088">PaQ-2-PiQ</a>, <a href="https://openaccess.thecvf.com/content_CVPR_2020/papers/Su_Blindly_Assess_Image_Quality_in_the_Wild_Guided_by_a_CVPR_2020_paper.pdf">HyperIQA</a>, <a href="https://arxiv.org/abs/2108.05997">MUSIQ</a>, <a href="https://arxiv.org/abs/2204.08958">MANIQA</a>, <a href="https://arxiv.org/abs/2308.03060">TOPIQ</a></li>
+    <li>Distortion-aware: <a href="https://github.com/miccunifi/ARNIQA">ARNIQA</a>, <a href="https://arxiv.org/abs/2110.13266">CONTRIQUE</a>, <a href="https://arxiv.org/abs/2303.14968">LIQE</a></li>
+    <li>Vision-language IQA: <a href="https://arxiv.org/abs/2207.12396">CLIP-IQA</a>, <a href="https://arxiv.org/abs/2312.17090">Q-Align</a> (as baselines)</li>
+  </ul></div>
+  <div class="skill"><h4>Evaluation</h4><ul>
+    <li><a href="https://en.wikipedia.org/wiki/Spearman%27s_rank_correlation_coefficient">SRCC</a> and <a href="https://en.wikipedia.org/wiki/Pearson_correlation_coefficient">PLCC</a> (rank and linear correlation)</li>
+    <li><a href="https://en.wikipedia.org/wiki/Mean_absolute_error">MAE</a> of predicted severity</li>
+    <li>Type classification accuracy, <a href="https://en.wikipedia.org/wiki/Confusion_matrix">confusion matrix</a></li>
+    <li>Cross-dataset generalization tests</li>
+    <li>Run time and model size on device</li>
+  </ul></div>
+  <div class="skill"><h4>Tools and frameworks</h4><ul>
+    <li><a href="https://www.python.org/">Python</a>, <a href="https://pytorch.org/">PyTorch</a>, <a href="https://docs.pytorch.org/vision/stable/">torchvision</a>, <a href="https://github.com/huggingface/pytorch-image-models">timm</a></li>
+    <li><a href="https://opencv.org/">OpenCV</a>, <a href="https://kornia.readthedocs.io/">kornia</a>, <a href="https://scikit-image.org/">scikit-image</a>, <a href="https://numpy.org/">NumPy</a></li>
+    <li>Distortion code: ARNIQA, <a href="https://github.com/bethgelab/imagecorruptions">imagecorruptions</a>, <a href="https://github.com/albumentations-team/albumentations">albumentations</a></li>
+    <li>pyiqa (<a href="https://github.com/chaofengc/IQA-PyTorch">IQA-PyTorch</a>) for baseline metrics</li>
+    <li><a href="https://wandb.ai/site">Weights &amp; Biases</a> or <a href="https://www.tensorflow.org/tensorboard">TensorBoard</a> for experiments</li>
+    <li><a href="https://onnx.ai/">ONNX</a>, <a href="https://ai.google.dev/edge/litert">TFLite</a> for deployment; <a href="https://git-scm.com/">Git</a>, <a href="https://github.com/">GitHub</a></li>
+  </ul></div>
+</div>
+
+<h2>Datasets</h2>
+<h3>Synthetic distortions with type labels</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Dataset</th><th>Content</th><th>Labels</th><th>Use here</th></tr></thead>
+<tbody>
+<tr><td><a href="https://database.mmsp-kn.de/kadid-10k-database.html">KADID-10k</a></td><td class="num">81 reference, 10,125 distorted; 25 types &times; 5 levels</td><td><a href="https://en.wikipedia.org/wiki/Mean_opinion_score">DMOS</a>, distortion type and level</td><td>Main human-labeled set; its type groups match four of the five families</td></tr>
+<tr><td><a href="https://database.mmsp-kn.de/kadid-10k-database.html">KADIS-700k</a></td><td class="num">140k reference, 700k distorted; MATLAB code</td><td>Distortion type and parameters (no MOS)</td><td>Large scale pretraining for type and severity</td></tr>
+<tr><td><a href="https://www.ponomarenko.info/tid2013.htm">TID2013</a></td><td class="num">25 reference, 3,000 distorted; 24 types &times; 5 levels</td><td>MOS</td><td>Contrast, saturation, color quantization, chromatic aberration</td></tr>
+<tr><td><a href="https://arxiv.org/abs/2007.12142">PIPAL</a></td><td class="num">250 reference, ~29k distorted; 40 types</td><td>Elo scores from pairwise votes</td><td>Includes spatial warping and restoration artifacts</td></tr>
+<tr><td><a href="https://live.ece.utexas.edu/research/quality/subjective.htm">LIVE IQA</a>, <a href="https://s2.smu.edu/~eclarson/csiq.html">CSIQ</a></td><td>Classic small sets (blur, noise, compression, contrast)</td><td>DMOS</td><td>Standard baselines</td></tr>
+<tr><td><a href="https://arxiv.org/html/2609.08316">Diag-Bench</a> (2026)</td><td class="num">~21k samples; 12 types &times; 5 levels</td><td>Region box + type + severity</td><td>Closest match to per-region output; release announced</td></tr>
+</tbody>
+</table></div>
+
+<h3>Patch-level and smartphone photos</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Dataset</th><th>Content</th><th>Labels</th><th>Use here</th></tr></thead>
+<tbody>
+<tr><td><a href="https://baidut.github.io/PaQ-2-PiQ/">PaQ-2-PiQ (LIVE-FB)</a></td><td class="num">~40k images, ~120k patches</td><td>MOS per image and per patch</td><td>The only large human patch-score set</td></tr>
+<tr><td><a href="https://github.com/h4nwei/SPAQ">SPAQ</a></td><td class="num">11,125 photos from 66 smartphones</td><td>MOS + brightness, colorfulness, contrast, noisiness, sharpness + <a href="https://en.wikipedia.org/wiki/Exif">EXIF</a></td><td>Real-world test for light, color, contrast, focus heads</td></tr>
+<tr><td><a href="https://database.mmsp-kn.de/koniq-10k-database.html">KonIQ-10k</a></td><td class="num">10,073 images</td><td>MOS + brightness, colorfulness, contrast, sharpness</td><td>Large in-the-wild set with attributes</td></tr>
+<tr><td><a href="https://database.mmsp-kn.de/koniq-image-defects-database.html">KonIQ++</a></td><td>Same images</td><td>Defect scores: blur, artifacts, color, contrast</td><td>Real defect-type labels</td></tr>
+<tr><td><a href="https://live.ece.utexas.edu/research/ChallengeDB/index.html">LIVE Challenge</a></td><td class="num">1,162 mobile photos</td><td>MOS</td><td>Standard in-the-wild test set</td></tr>
+<tr><td><a href="https://openaccess.thecvf.com/content/ICCV2023/papers/Fang_SQAD_Automatic_Smartphone_Camera_Quality_Assessment_and_Benchmarking_ICCV_2023_paper.pdf">SQAD</a></td><td class="num">3,017 images from 29 phones</td><td>Lab measurements + quality attributes</td><td>Smartphone camera benchmarking</td></tr>
+</tbody>
+</table></div>
+
+<h3>Focus, exposure, and clean source images</h3>
+<div class="table-wrap"><table>
+<thead><tr><th>Dataset</th><th>Content</th><th>Use here</th></tr></thead>
+<tbody>
+<tr><td><a href="https://github.com/Abdullah-Abuolaim/defocus-deblurring-dual-pixel">DPDD</a></td><td>500 scenes with real defocus and all-in-focus pairs</td><td>Real defocus test data</td></tr>
+<tr><td><a href="https://www.cse.cuhk.edu.hk/leojia/projects/dblurdetect/dataset.html">CUHK blur detection</a></td><td>1,000 images with hand-drawn blur masks</td><td>Tests whether focus maps find the blurred regions</td></tr>
+<tr><td><a href="https://github.com/mahmoudnafifi/Exposure_Correction">Afifi exposure set</a></td><td>FiveK <a href="https://en.wikipedia.org/wiki/Raw_image_format">RAW</a> photos rendered at several exposures</td><td>Real exposure errors</td></tr>
+<tr><td><a href="https://data.vision.ee.ethz.ch/cvl/DIV2K/">DIV2K</a>, <a href="https://ofsoundof.github.io/lsdir-data/">LSDIR</a></td><td>1,000 and ~85,000 high-quality images</td><td>Clean source images for synthesis</td></tr>
+<tr><td><a href="https://kedema.org/project/exploration/index.html">Waterloo Exploration</a></td><td>4,744 clean images</td><td>Clean source pool</td></tr>
+<tr><td><a href="https://github.com/google-research/google-research/tree/master/flare_removal">Google flare set</a></td><td>5,001 flare-only images (CC BY 4.0)</td><td>Realistic lens flare overlays</td></tr>
+</tbody>
+</table></div>
+
+<h2>Libraries for creating distortions</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Library</th><th>Families</th><th>Status and license</th></tr></thead>
+<tbody>
+<tr><td><a href="https://kornia.readthedocs.io/">kornia</a></td><td>All five, differentiable, runs on GPU</td><td><span class="tag">Apache-2.0</span> active</td></tr>
+<tr><td><a href="https://github.com/miccunifi/ARNIQA">ARNIQA distortions</a></td><td>Python port of KADID distortions (focus, color, light, contrast)</td><td><span class="tag">Apache-2.0</span></td></tr>
+<tr><td><a href="https://opencv.org/">OpenCV</a></td><td>Geometry: lens distortion, perspective, remap</td><td><span class="tag">Apache-2.0</span> active</td></tr>
+<tr><td><a href="https://docs.pytorch.org/vision/stable/transforms.html">torchvision v2</a></td><td>Geometry, color, contrast, blur</td><td><span class="tag">BSD</span> active</td></tr>
+<tr><td><a href="https://github.com/bethgelab/imagecorruptions">imagecorruptions</a></td><td>ImageNet-C corruptions: blur, brightness, contrast, saturation</td><td><span class="tag">Apache-2.0</span></td></tr>
+<tr><td><a href="https://github.com/cszn/BSRGAN">BSRGAN degradations</a></td><td>Realistic blur, noise and compression chains</td><td><span class="tag">Apache-2.0</span></td></tr>
+<tr><td><a href="https://github.com/google-research/google-research/tree/master/unprocessing">Unprocessing</a></td><td>Color via a simple camera pipeline model (white balance and color matrix)</td><td><span class="tag">research code</span></td></tr>
+<tr><td><a href="https://github.com/albumentations-team/AlbumentationsX">albumentations / AlbumentationsX</a></td><td>All five, very rich</td><td><span class="tag warn">original archived 2025; successor AGPL or commercial</span></td></tr>
+<tr><td><a href="https://github.com/chaofengc/IQA-PyTorch">pyiqa</a></td><td>Ready IQA models and metrics for baselines</td><td><span class="tag warn">non-commercial license</span></td></tr>
+<tr><td><a href="https://github.com/aleju/imgaug">imgaug</a></td><td>All five</td><td><span class="tag warn">unmaintained since 2020</span></td></tr>
+</tbody>
+</table></div>
+<p class="note"><strong>License check:</strong> several datasets are "research only" and some libraries have non-commercial or copyleft licenses. Agree with Samsung early which ones may be used.</p>
+
+<h2>Relevant papers</h2>
+<h3>Patch-based quality</h3>
+<ol class="refs">
+  <li>Kang, Ye, Li, Doermann. <a href="https://openaccess.thecvf.com/content_cvpr_2014/html/Kang_Convolutional_Neural_Networks_2014_CVPR_paper.html">Convolutional Neural Networks for No-Reference Image Quality Assessment</a>. <span class="venue">CVPR 2014.</span> First patch-input CNN for IQA.</li>
+  <li>Bosse et al. <a href="https://arxiv.org/abs/1612.01697">Deep Neural Networks for No-Reference and Full-Reference Image Quality Assessment</a> (WaDIQaM). <span class="venue">IEEE TIP 2018.</span> Weighted pooling of patch scores.</li>
+  <li>Ying et al. <a href="https://arxiv.org/abs/1912.10088">From Patches to Pictures (PaQ-2-PiQ)</a>. <span class="venue">CVPR 2020.</span> Human patch scores and local quality maps.</li>
+</ol>
+<h3>No-reference quality models</h3>
+<ol class="refs" start="4">
+  <li>Su et al. <a href="https://openaccess.thecvf.com/content_CVPR_2020/papers/Su_Blindly_Assess_Image_Quality_in_the_Wild_Guided_by_a_CVPR_2020_paper.pdf">HyperIQA: Blindly Assess Image Quality in the Wild</a>. <span class="venue">CVPR 2020.</span></li>
+  <li>Zhang et al. <a href="https://arxiv.org/abs/1907.02665">DBCNN: Blind IQA Using a Deep Bilinear CNN</a>. Pretrained on distortion type and level.</li>
+  <li>Ke et al. <a href="https://arxiv.org/abs/2108.05997">MUSIQ: Multi-scale Image Quality Transformer</a>. <span class="venue">ICCV 2021.</span></li>
+  <li>Yang et al. <a href="https://arxiv.org/abs/2204.08958">MANIQA</a>. Multi-dimension attention for IQA.</li>
+  <li>Madhusudana et al. <a href="https://arxiv.org/abs/2110.13266">CONTRIQUE: Image Quality Assessment using Contrastive Learning</a>. <span class="venue">IEEE TIP 2022.</span></li>
+  <li>Saha et al. <a href="https://arxiv.org/abs/2304.00451">Re-IQA</a>. <span class="venue">CVPR 2023.</span></li>
+  <li>Agnolucci et al. <a href="https://arxiv.org/abs/2310.14918">ARNIQA: Learning Distortion Manifold for Image Quality Assessment</a>. <span class="venue">WACV 2024.</span> Reusable distortion code.</li>
+  <li>Chen et al. <a href="https://arxiv.org/abs/2308.03060">TOPIQ: A Top-down Approach from Semantics to Distortions</a>.</li>
+  <li>Zhang et al. <a href="https://arxiv.org/abs/2303.14968">LIQE: Blind IQA via Vision-Language Correspondence, a Multitask Approach</a>. <span class="venue">CVPR 2023.</span> Joint quality, scene and distortion type.</li>
+  <li>Wang et al. <a href="https://arxiv.org/abs/2207.12396">CLIP-IQA: Exploring CLIP for Assessing the Look and Feel of Images</a>. <span class="venue">AAAI 2023.</span></li>
+  <li>Wu et al. <a href="https://arxiv.org/abs/2312.17090">Q-Align</a>. <span class="venue">ICML 2024.</span> Large multimodal model as quality judge.</li>
+  <li>You et al. <a href="https://arxiv.org/abs/2312.08962">DepictQA: Depicting Beyond Scores</a>. <span class="venue">ECCV 2024.</span></li>
+  <li>Li et al. <a href="https://arxiv.org/abs/2503.22679">Q-Insight</a>. <span class="venue">NeurIPS 2025.</span> Reinforcement learning with score and degradation labels.</li>
+</ol>
+<h3>Distortion type and severity</h3>
+<ol class="refs" start="17">
+  <li>Moorthy, Bovik. <a href="https://www.colorado.edu/lab/live/publications/moorthy_tip_2011.pdf">DIIVINE: Blind Image Quality Assessment, From Natural Scene Statistics to Perceptual Quality</a>. <span class="venue">IEEE TIP 2011.</span> Identify the distortion first, then score it.</li>
+  <li>Zhai et al. <a href="https://arxiv.org/abs/2606.31626">PrISM-IQA</a>. <span class="venue">arXiv 2026.</span> Severity level for 53 ISP-related smartphone issues.</li>
+  <li>Zhang et al. <a href="https://arxiv.org/abs/2609.08316">From Glance to Scrutiny (GS-IQA)</a>. <span class="venue">arXiv 2026.</span> Locate, classify and rate each distortion; introduces Diag-Bench.</li>
+  <li>Nguyen. <a href="https://openaccess.thecvf.com/content/WACV2025W/ImageQuality/papers/Nguyen_A_Distortion_Aware_Image_Quality_Assessment_Model_WACVW_2025_paper.pdf">A Distortion Aware Image Quality Assessment Model</a>. <span class="venue">WACV Workshops 2025.</span></li>
+  <li>Kim et al. <a href="https://arxiv.org/abs/2206.06541">pMOS: per-pixel quality prediction</a>. <span class="venue">arXiv 2022.</span></li>
+</ol>
+<h3>Datasets and robustness</h3>
+<ol class="refs" start="22">
+  <li>Lin, Hosu, Saupe. KADID-10k: A Large-scale Artificially Distorted IQA Database. <span class="venue">QoMEX 2019.</span></li>
+  <li>Fang et al. <a href="https://github.com/h4nwei/SPAQ">Perceptual Quality Assessment of Smartphone Photography (SPAQ)</a>. <span class="venue">CVPR 2020.</span></li>
+  <li>Hendrycks, Dietterich. <a href="https://arxiv.org/abs/1903.12261">Benchmarking Neural Network Robustness to Common Corruptions and Perturbations</a> (ImageNet-C). <span class="venue">ICLR 2019.</span></li>
+  <li>Brooks et al. Unprocessing Images for Learned Raw Denoising. <span class="venue">CVPR 2019.</span> Camera-pipeline-aware color distortions.</li>
+</ol>
+
+<h2>Prerequisites</h2>
+<ul>
+  <li><strong>Required:</strong> prior knowledge of deep learning and <a href="https://pytorch.org/">PyTorch</a>, from a completed course or a significant project (training a network, writing a Dataset and DataLoader, a training loop).</li>
+  <li><strong>Required:</strong> good Python and <a href="https://numpy.org/">NumPy</a>.</li>
+  <li><strong>Recommended:</strong> a course in image processing or computer vision.</li>
+</ul>
+<p>Compute: a GPU with 12 GB or more for training (lab machine or cloud).</p>
+
+<footer>HIT &times; Samsung joint student projects, academic year 2026/27. Supervisor: Alexander Apartsin (HIT). Samsung mentor: to be assigned.</footer>
+</main>
+</body>
+</html>

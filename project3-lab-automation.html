@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Self-Driving Camera Lab</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="page">
+
+<header class="masthead">
+<div class="crumbs"><a href="index.html">HIT &times; Samsung projects</a> / Project 3</div>
+<h1>Self-Driving Camera Lab</h1>
+<p class="lede">Software that remotely controls a camera test lab (lights, motorized stages, focus motors and the camera under test), finds the best setup on its own, and searches the space of test conditions for the cases where the camera performs worst.</p>
+
+<dl class="facts">
+  <div><dt>Credit</dt><dd>7 points</dd></div>
+  <div><dt>Team</dt><dd>Up to 3 students</dd></div>
+  <div><dt>Partners</dt><dd>HIT and Samsung</dd></div>
+  <div><dt>On-site work</dt><dd>Required, at the lab</dd></div>
+</dl>
+</header>
+
+<p class="research"><strong>A research project for an industry customer.</strong> There is no ready recipe: the team defines the details of the method, reads the literature, tries ideas, measures, and learns from what does not work. The project requires independent work, proactive exploration and a lot of trial and error, with regular reporting to the supervisor and the Samsung mentor.</p>
+
+<p class="note"><strong>On-site visits required:</strong> the equipment is in a test lab on site. Most development is done remotely against simulated (mock) devices, but integration and testing with the real hardware require regular visits to the lab. Students should plan for scheduled lab days during both semesters, with more of them in the integration phase.</p>
+
+<h2>Description</h2>
+<p>Camera image quality is measured in labs with test charts, calibrated lights and precise positioning. Today, much of this setup is manual: moving the camera, aligning it to the chart, setting the light, focusing, and capturing. This project turns the lab into a programmable, self-driving system in three steps.</p>
+
+<div class="spec">
+  <p><strong>(a) Unified API.</strong> One software interface for every device in the lab: light sources (intensity, <a href="https://en.wikipedia.org/wiki/Color_temperature">color temperature</a>, flicker), motorized positioning (linear and rotation stages, pan-tilt, robot arm), focus motors, and the camera or phone under test. Every capture is logged together with the full state of all devices.</p>
+  <p><strong>(b) Automatic best setup.</strong> Algorithms that find the right settings on their own: align the camera to the chart (position and angle), make the lighting uniform, and find the best focus.</p>
+  <p><strong>(c) Smart exploration and failure hunting.</strong> A strategy that scans the space of configurations with as few captures as possible, first to get a representative sample of camera behavior, then to actively hunt for configurations where the camera under-performs. Both <strong>static</strong> conditions and <strong>dynamic</strong> ones (moving targets, camera shake, changing or flickering light) are covered.</p>
+</div>
+
+<h3>Tasks to automate</h3>
+<p>The lab team has defined the first tasks. Each action must be fitted to the specific chart being shot, so every chart gets a definition (its markers, regions of interest and target pose) that the routines read.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Task</th><th>What the software must do</th><th>Main technique</th></tr></thead>
+<tbody>
+<tr><td>Sensor arm alignment</td><td>Move the sensor so it faces the chart at the right <strong>distance</strong> and <strong>orientation</strong> (height, pitch, roll, yaw)</td><td><a href="https://en.wikipedia.org/wiki/Fiducial_marker">Fiducial</a> marker detection, <a href="https://en.wikipedia.org/wiki/Perspective-n-Point">pose estimation</a> (PnP), closed-loop correction</td></tr>
+<tr><td>Image focus</td><td>Find the sharpest focus position for the chart and distance</td><td>Focus measure on chart regions, coarse-to-fine search</td></tr>
+<tr><td>Light source adjustment</td><td>Set intensity and color temperature; check that the chart is evenly lit</td><td>Measure gray patches across the chart, adjust lights</td></tr>
+<tr><td>Exposure and <a href="https://en.wikipedia.org/wiki/Color_balance">white balance</a></td><td>Choose <a href="https://en.wikipedia.org/wiki/Shutter_speed">exposure time</a> and gain so the chart is well exposed without clipping, and estimate white balance from neutral patches</td><td><a href="https://en.wikipedia.org/wiki/Raw_image_format">RAW</a> <a href="https://en.wikipedia.org/wiki/Image_histogram">histogram</a> and clipping checks, gray-patch statistics</td></tr>
+<tr><td>Chart movement</td><td>Bring the requested chart in front of the sensor</td><td>Motorized chart track, position check with markers</td></tr>
+</tbody>
+</table></div>
+
+<h3>Main challenges</h3>
+<ul>
+  <li><strong>Computer vision on RAW <a href="https://en.wikipedia.org/wiki/Color_filter_array">CFA</a> data.</strong> The sensor delivers a RAW <a href="https://en.wikipedia.org/wiki/Bayer_filter">Bayer mosaic</a>, not a finished color image. Marker detection, focus and exposure measurements have to work directly on this data: subtract the black level, split the mosaic into its color planes (or use the green plane at half resolution), and measure there, without running a full <a href="https://en.wikipedia.org/wiki/Color_image_pipeline">camera pipeline</a>.</li>
+  <li><strong>Controlling hardware through multiple APIs.</strong> Motion stages, lights, power switches and the sensor capture software all come with different interfaces. The project wraps them in one consistent API.</li>
+</ul>
+
+<h2>The lab and its hardware</h2>
+<p>Based on photos of the lab, the setup includes the equipment below. The interfaces listed are our best guess from the visible hardware and will be confirmed during the first lab visit.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Equipment</th><th>What it does</th><th>Likely interface and API</th></tr></thead>
+<tbody>
+<tr><td>Long <a href="https://en.wikipedia.org/wiki/Linear_stage">linear stage</a> (track on the table)</td><td>Moves the sensor arm toward and away from the charts (distance), controlled from the lab computer</td><td><a href="https://www.zaber.com/">Zaber</a> motorized stage; <a href="https://software.zaber.com/motion-library/docs">Zaber Motion Library</a> (<a href="https://www.python.org/">Python</a>), Zaber ASCII protocol over USB/serial</td></tr>
+<tr><td>Zaber sensor mount: vertical lift plus rotation stages</td><td>Height, pitch, roll and yaw of the sensor</td><td>Zaber stages on the same controller chain; same library. Some pitch/roll stages look manual (scales and knobs) and may need motorizing</td></tr>
+<tr><td>Sensor board on the mount</td><td>The camera sensor under test, delivering RAW CFA frames</td><td>Vendor capture software or SDK; the project wraps it with a capture service (command line or library call)</td></tr>
+<tr><td>Chart wall on sliding tracks</td><td>Several large test charts that can slide sideways in an aluminum profile frame</td><td>Currently manual; can be motorized with a belt or linear drive (a Zaber stage, or a <a href="https://en.wikipedia.org/wiki/Stepper_motor">stepper</a> motor with an <a href="https://www.arduino.cc/">Arduino</a> / <a href="https://github.com/gnea/grbl">GRBL</a> controller)</td></tr>
+<tr><td>Test charts with fiducial borders</td><td>Multi-target charts (<a href="https://en.wikipedia.org/wiki/Siemens_star">Siemens stars</a>, slanted edges, color patches, texture) surrounded by square markers</td><td>Passive; the markers make automatic alignment possible with <a href="https://docs.opencv.org/4.x/d5/dae/tutorial_aruco_detection.html">OpenCV ArUco</a>-style detection</td></tr>
+<tr><td>Ceiling spotlights (two, NANLITE)</td><td>Main lighting for the charts</td><td>Professional LED fixtures usually support <a href="https://en.wikipedia.org/wiki/DMX512">DMX512</a>; control from Python through a USB-DMX interface (for example <a href="https://www.enttec.com/product/dmx-usb-interfaces/dmx-usb-pro-professional-1u-usb-to-dmx512-converter/">ENTTEC DMX USB Pro</a> with <a href="https://pypi.org/project/DMXEnttecPro/">DMXEnttecPro</a> or <a href="https://github.com/OpenLightingProject/ola">OLA</a>), or the maker's wireless app protocol</td></tr>
+<tr><td>Standing light panels (light boxes on wheels)</td><td>Diffuse, uniform illumination or backlit targets</td><td>Depends on model: DMX, USB/serial, or manual dimmer; to be checked on site</td></tr>
+<tr><td>Ceiling LED panels</td><td>Room light, a source of stray light</td><td>Building control; at least on/off should be scripted or switched off for tests</td></tr>
+<tr><td>Web power switch (remotely switched outlets)</td><td>Turns equipment on and off, resets devices remotely</td><td><a href="https://www.digital-loggers.com/">Digital Loggers</a> Web Power Switch, HTTP/<a href="https://en.wikipedia.org/wiki/REST">REST</a> API; Python <a href="https://pypi.org/project/dlipower/">dlipower</a></td></tr>
+<tr><td>ATEN unit on the rig</td><td>Probably a USB or KVM extender carrying signals from the rig to the lab computer</td><td>Transparent to software, but affects cabling and latency</td></tr>
+<tr><td>Small camera above the chart wall; ceiling dome camera</td><td>Overview of the lab</td><td>Can serve as a remote "eye" for safe operation (check that the path is clear before moving)</td></tr>
+</tbody>
+</table></div>
+<p class="note"><strong>Safety:</strong> remote motion needs software limits for every axis, a collision check between the arm and the chart wall, and an emergency stop that works from the remote interface.</p>
+
+<h2>Motivation</h2>
+<ul>
+  <li><strong>Speed and repeatability.</strong> Automated setups run day and night and repeat a test exactly, which a manual setup cannot.</li>
+  <li><strong>Better test coverage.</strong> The number of combinations of light, distance, angle, motion and camera settings is huge. A grid search is far too slow; smart sampling covers the space with a fraction of the captures.</li>
+  <li><strong>Finding weak spots early.</strong> Actively searching for the conditions where image quality drops finds problems before users do, and points engineers to what to fix.</li>
+  <li><strong>Data for other projects.</strong> The lab produces labeled test data for models such as the patch quality scanner (Project 1) and the RAW sensor twin (Project 2).</li>
+</ul>
+
+<h2>Goals and deliverables</h2>
+<ol>
+  <li>A <strong>device layer</strong> with a common interface (connect, set, read, move, capture), drivers for each lab device, and a mock version of each device for development without hardware.</li>
+  <li>A <strong>lab service</strong>: a documented REST or gRPC API, an <a href="https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern">event bus</a> for device status, and a database of every capture with its full configuration.</li>
+  <li><strong>Auto-setup routines</strong>: chart alignment with fiducial markers, <a href="https://en.wikipedia.org/wiki/Autofocus">autofocus</a> search, and lighting uniformity optimization.</li>
+  <li>An <strong>exploration engine</strong>: space-filling sampling, <a href="https://en.wikipedia.org/wiki/Bayesian_optimization">Bayesian optimization</a>, and failure search, with a report that maps where the camera performs well and badly.</li>
+  <li><strong>Dynamic tests</strong>: synchronized runs with motion and changing light.</li>
+  <li>A <strong>demonstration in the lab</strong> showing a full unattended test campaign.</li>
+</ol>
+
+<h2>Suggested approach</h2>
+<ul>
+  <li><strong>Learn from Android Camera ITS.</strong> Google's Camera Image Test Suite already drives phones over ADB with Python, shows charts on a tablet, rotates phones with an Arduino-controlled rig, and has an automated "ITS-in-a-box" setup. It is a good template for the API and test flow.</li>
+  <li><strong><a href="https://en.wikipedia.org/wiki/Hardware_abstraction">Hardware abstraction</a>.</strong> Follow the device model of Bluesky and <a href="https://github.com/bluesky/ophyd">ophyd</a> (or ophyd-async): every device exposes readable and settable signals, and a run engine records every step.</li>
+  <li><strong>Simulate first.</strong> Build a simple simulator of the rig (render a chart under a given pose, light and focus) so that the search algorithms can be developed and tested before the lab visits.</li>
+  <li><strong>Measure image quality.</strong> Use <a href="https://en.wikipedia.org/wiki/Optical_transfer_function">slanted-edge</a> sharpness (MTF Mapper), noise, distortion and color metrics as the scores the search optimizes.</li>
+  <li><strong>Search in stages:</strong> <a href="https://en.wikipedia.org/wiki/Sobol_sequence">Sobol</a> or <a href="https://en.wikipedia.org/wiki/Latin_hypercube_sampling">Latin hypercube</a> sampling for coverage; Bayesian optimization (BoTorch / Ax) for best settings; level-set estimation to map the boundary between good and bad quality; quality-diversity search (MAP-Elites with pyribs) to collect many different failure cases.</li>
+</ul>
+
+<h2>What students will need</h2>
+<p>A map of the concepts, methods and tools this project touches. The first weeks are for learning the essentials.</p>
+<div class="skills">
+  <div class="skill"><h4>Concepts</h4><ul>
+    <li>Camera image quality metrics: sharpness (SFR / <a href="https://en.wikipedia.org/wiki/Optical_transfer_function">MTF</a>), noise, distortion, color accuracy, <a href="https://en.wikipedia.org/wiki/Lens_flare">flare</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Raw_image_format">RAW</a> sensor data: <a href="https://en.wikipedia.org/wiki/Bayer_filter">Bayer CFA</a>, black level, color planes, clipping</li>
+    <li>Exposure, gain and <a href="https://en.wikipedia.org/wiki/Color_balance">white balance</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Camera_resectioning">Camera calibration</a>, <a href="https://en.wikipedia.org/wiki/Pose_(computer_vision)">camera pose</a>, <a href="https://en.wikipedia.org/wiki/Homography_(computer_vision)">homography</a></li>
+    <li>Light: <a href="https://en.wikipedia.org/wiki/Color_temperature">color temperature</a>, <a href="https://en.wikipedia.org/wiki/Illuminance">illuminance</a>, <a href="https://en.wikipedia.org/wiki/Pulse-width_modulation">PWM</a> flicker</li>
+    <li>Motion control: <a href="https://en.wikipedia.org/wiki/Stepper_motor">stepper</a> and <a href="https://en.wikipedia.org/wiki/Servomotor">servo motors</a>, stages, <a href="https://en.wikipedia.org/wiki/Robot_kinematics">kinematics</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Rolling_shutter">Rolling shutter</a>, <a href="https://en.wikipedia.org/wiki/Motion_blur_(media)">motion blur</a>, <a href="https://en.wikipedia.org/wiki/Image_stabilization">image stabilization</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Design_of_experiments">Design of experiments</a>, search spaces</li>
+  </ul></div>
+  <div class="skill"><h4>Algorithms and techniques</h4><ul>
+    <li><a href="https://en.wikipedia.org/wiki/Fiducial_marker">Fiducial markers</a> (<a href="https://docs.opencv.org/4.x/d5/dae/tutorial_aruco_detection.html">ArUco</a>, <a href="https://docs.opencv.org/4.x/df/d4a/tutorial_charuco_detection.html">ChArUco</a>, <a href="https://april.eecs.umich.edu/software/apriltag">AprilTag</a>) and <a href="https://en.wikipedia.org/wiki/Perspective-n-Point">pose estimation</a> (PnP)</li>
+    <li><a href="https://en.wikipedia.org/wiki/Visual_servoing">Visual servoing</a> for alignment</li>
+    <li>Computer vision directly on RAW <a href="https://en.wikipedia.org/wiki/Color_filter_array">CFA</a> frames</li>
+    <li>Auto exposure from <a href="https://en.wikipedia.org/wiki/Image_histogram">histograms</a>; gray-world and gray-patch white balance</li>
+    <li><a href="https://en.wikipedia.org/wiki/Autofocus">Autofocus</a>: focus measures, <a href="https://en.wikipedia.org/wiki/Hill_climbing">hill climbing</a>, <a href="https://en.wikipedia.org/wiki/Golden-section_search">golden-section search</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Low-discrepancy_sequence">Quasi-random</a> sampling: <a href="https://en.wikipedia.org/wiki/Sobol_sequence">Sobol</a>, <a href="https://en.wikipedia.org/wiki/Latin_hypercube_sampling">Latin hypercube</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Gaussian_process">Gaussian processes</a> and <a href="https://en.wikipedia.org/wiki/Bayesian_optimization">Bayesian optimization</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Active_learning_(machine_learning)">Active learning</a>, <a href="https://www.ijcai.org/Abstract/13/202">level-set estimation</a></li>
+    <li><a href="https://arxiv.org/abs/1902.04245">Falsification</a> and adversarial testing, <a href="https://arxiv.org/abs/1504.04909">quality-diversity</a> (MAP-Elites)</li>
+  </ul></div>
+  <div class="skill"><h4>Software engineering</h4><ul>
+    <li><a href="https://en.wikipedia.org/wiki/Hardware_abstraction">Hardware abstraction</a> layers, <a href="https://en.wikipedia.org/wiki/Device_driver">device drivers</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/REST">REST</a> and <a href="https://en.wikipedia.org/wiki/Remote_procedure_call">RPC</a> API design, <a href="https://www.openapis.org/">OpenAPI</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Asynchrony_(computer_programming)">Asynchronous programming</a>, <a href="https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern">event buses</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/Mock_object">Mock devices</a> and automated testing</li>
+    <li>Logging, <a href="https://en.wikipedia.org/wiki/Data_lineage">data provenance</a>, experiment databases</li>
+  </ul></div>
+  <div class="skill"><h4>Evaluation</h4><ul>
+    <li>Alignment repeatability (<a href="https://en.wikipedia.org/wiki/Reprojection_error">reprojection error</a>, angle)</li>
+    <li>Autofocus accuracy and number of steps</li>
+    <li>Share of a campaign run unattended</li>
+    <li>Coverage vs. number of captures</li>
+    <li>Failures found per capture budget vs. random sampling</li>
+  </ul></div>
+  <div class="skill"><h4>Tools and frameworks</h4><ul>
+    <li><a href="https://www.python.org/">Python</a>, <a href="https://docs.python.org/3/library/asyncio.html">asyncio</a>, <a href="https://fastapi.tiangolo.com/">FastAPI</a> or <a href="https://grpc.io/">gRPC</a>, <a href="https://mqtt.org/">MQTT</a> or <a href="https://zeromq.org/">ZeroMQ</a></li>
+    <li><a href="https://blueskyproject.io/">Bluesky</a>, <a href="https://github.com/bluesky/ophyd-async">ophyd-async</a>, <a href="https://pyvisa.readthedocs.io/">PyVISA</a>, <a href="https://pymeasure.readthedocs.io/">PyMeasure</a></li>
+    <li><a href="https://developer.android.com/tools/adb">ADB</a>, <a href="https://developer.android.com/media/camera/camera2">Camera2</a>, <a href="https://github.com/Genymobile/scrcpy">scrcpy</a>, <a href="http://www.gphoto.org/">gphoto2</a>, <a href="https://github.com/genicam/harvesters">Harvester</a> (<a href="https://en.wikipedia.org/wiki/GenICam">GenICam</a>)</li>
+    <li><a href="https://software.zaber.com/motion-library/docs">Zaber Motion Library</a> (the lab's stages); other SDKs: <a href="https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=Motion_Control">Thorlabs Kinesis</a>, <a href="https://github.com/PI-PhysikInstrumente/PIPython">PI pipython</a></li>
+    <li><a href="https://en.wikipedia.org/wiki/DMX512">DMX</a> lighting control (USB-DMX, <a href="https://github.com/OpenLightingProject/ola">OLA</a>); web power switch API</li>
+    <li><a href="https://github.com/letmaik/rawpy">rawpy</a>, <a href="https://numpy.org/">NumPy</a> for RAW frames</li>
+    <li><a href="https://www.arduino.cc/">Arduino</a>, <a href="https://github.com/gnea/grbl">GRBL</a> for low-cost motion; <a href="https://docs.ros.org/">ROS 2</a> and <a href="https://moveit.ai/">MoveIt 2</a> for robot arms</li>
+    <li><a href="https://opencv.org/">OpenCV</a>, <a href="https://sourceforge.net/projects/mtfmapper/">MTF Mapper</a></li>
+    <li><a href="https://scipy.org/">SciPy</a> (qmc), <a href="https://botorch.org/">BoTorch</a>, <a href="https://ax.dev/">Ax</a>, <a href="https://optuna.org/">Optuna</a>, <a href="https://github.com/icaros-usc/pyribs">pyribs</a>, <a href="https://github.com/BerkeleyLearnVerify/VerifAI">VerifAI</a></li>
+  </ul></div>
+</div>
+
+<h2>Reference test systems</h2>
+<p>Existing automated test suites, characterization standards and commercial systems show how industry camera labs are built.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>System</th><th>What it covers</th></tr></thead>
+<tbody>
+<tr><td><a href="https://standards.ieee.org/ieee/1858/10727/">IEEE 1858 (CPIQ)</a></td><td>Camera phone image quality metrics</td></tr>
+<tr><td><a href="https://www.imatest.com/IEEE-2020">IEEE 2020</a></td><td>Automotive camera quality, including LED flicker</td></tr>
+<tr><td><a href="https://www.emva.org/press/new-release-4-0-of-emva-1288-standard-for-camera-characterization/">EMVA 1288</a></td><td>Sensor and camera characterization</td></tr>
+<tr><td><a href="https://source.android.com/docs/compatibility/cts/camera-its">Android Camera ITS</a></td><td>Automated camera test suite with open rig designs (<a href="https://source.android.com/docs/compatibility/cts/camera-its-box">ITS-in-a-box</a>)</td></tr>
+<tr><td><a href="https://image-engineering.de/en/products/illumination-devices/le7">Image Engineering LE7</a></td><td>Programmable uniform light source with API</td></tr>
+<tr><td><a href="https://image-engineering.de/products/measurement-devices/steve-6d">Image Engineering STEVE-6D</a></td><td>6-axis shake robot for stabilization tests</td></tr>
+<tr><td><a href="https://www.imatest.com/">Imatest</a>, <a href="https://www.dxomark.com/">DXOMARK</a></td><td>Commercial image quality analysis and test protocols</td></tr>
+</tbody>
+</table></div>
+
+<h2>Useful Software and Libraries</h2>
+<div class="table-wrap"><table>
+<thead><tr><th>Tool</th><th>Role in the project</th></tr></thead>
+<tbody>
+<tr><td><a href="https://blueskyproject.io/">Bluesky</a>, <a href="https://github.com/bluesky/ophyd-async">ophyd-async</a></td><td>Experiment orchestration and hardware abstraction, from large science facilities</td></tr>
+<tr><td><a href="https://github.com/bluesky/bluesky-adaptive">bluesky-adaptive</a></td><td>Adaptive scans driven by a search agent <span class="tag warn">redesign announced</span></td></tr>
+<tr><td><a href="https://github.com/micro-manager/pycro-manager">pycro-manager</a></td><td>Python control of cameras, stages and lights via Micro-Manager</td></tr>
+<tr><td><a href="https://pyvisa.readthedocs.io/">PyVISA</a>, <a href="https://pymeasure.readthedocs.io/">PyMeasure</a>, <a href="https://pylablib.readthedocs.io/">pylablib</a></td><td>Instrument drivers</td></tr>
+<tr><td><a href="https://developer.android.com/tools/adb">ADB</a>, <a href="https://developer.android.com/media/camera/camera2">Camera2</a>, <a href="https://github.com/Genymobile/scrcpy">scrcpy</a></td><td>Remote control of the phone under test</td></tr>
+<tr><td><a href="http://www.gphoto.org/">gphoto2</a>, <a href="https://github.com/genicam/harvesters">Harvester</a>, <a href="https://github.com/AravisProject/aravis">Aravis</a></td><td>Control of DSLRs and machine vision cameras</td></tr>
+<tr><td><a href="https://www.thorlabs.com/software_pages/ViewSoftwarePage.cfm?Code=Motion_Control">Thorlabs Kinesis</a>, <a href="https://software.zaber.com/motion-library/docs">Zaber Motion Library</a>, <a href="https://github.com/PI-PhysikInstrumente/PIPython">PI pipython</a></td><td>Motorized stage SDKs</td></tr>
+<tr><td><a href="https://github.com/gnea/grbl">GRBL</a>, <a href="https://www.arduino.cc/">Arduino</a></td><td>Low-cost motor control</td></tr>
+<tr><td><a href="https://control.ros.org/">ros2_control</a>, <a href="https://moveit.ai/">MoveIt 2</a></td><td>Robot arm control and motion planning</td></tr>
+<tr><td><a href="https://github.com/OpenLightingProject/ola">Open Lighting Architecture</a></td><td>DMX control of studio lights</td></tr>
+<tr><td><a href="https://fastapi.tiangolo.com/">FastAPI</a>, <a href="https://grpc.io/">gRPC</a>, <a href="https://mqtt.org/">MQTT</a>, <a href="https://zeromq.org/">ZeroMQ</a></td><td>Lab service API and messaging</td></tr>
+<tr><td><a href="https://docs.opencv.org/4.x/da/d13/tutorial_aruco_calibration.html">OpenCV ArUco / ChArUco</a>, <a href="https://visp.inria.fr/">ViSP</a></td><td>Pose estimation and visual servoing for alignment</td></tr>
+<tr><td><a href="https://sourceforge.net/projects/mtfmapper/">MTF Mapper</a></td><td>Open-source slanted-edge sharpness measurement</td></tr>
+<tr><td><a href="https://docs.scipy.org/doc/scipy/reference/stats.qmc.html">scipy.stats.qmc</a></td><td>Sobol and Latin hypercube sampling</td></tr>
+<tr><td><a href="https://botorch.org/">BoTorch</a>, <a href="https://ax.dev/">Ax</a>, <a href="https://optuna.org/">Optuna</a></td><td>Bayesian optimization</td></tr>
+<tr><td><a href="https://github.com/icaros-usc/pyribs">pyribs</a></td><td>Quality-diversity search (MAP-Elites) for diverse failure cases</td></tr>
+<tr><td><a href="https://github.com/BerkeleyLearnVerify/VerifAI">VerifAI</a> + <a href="https://github.com/BerkeleyLearnVerify/Scenic">Scenic</a></td><td>Falsification toolkit for systems that use perception</td></tr>
+</tbody>
+</table></div>
+<p class="note"><strong>Avoid:</strong> GPyOpt (archived in 2023). Consumer smart bulbs are not repeatable enough for measurement lighting.</p>
+
+<h2>Relevant papers</h2>
+<h3>Self-driving labs and adaptive experiments</h3>
+<ol class="refs">
+  <li>H&auml;se, Roch, Aspuru-Guzik. <a href="https://doi.org/10.1016/j.trechm.2019.02.007">Next-Generation Experimentation with Self-Driving Laboratories</a>. <span class="venue">Trends in Chemistry 2019.</span></li>
+  <li>Abolhasani, Kumacheva. <a href="https://doi.org/10.1038/s44160-022-00231-0">The Rise of Self-Driving Labs in Chemical and Materials Sciences</a>. <span class="venue">Nature Synthesis 2023.</span></li>
+  <li>Pinkard et al. <a href="https://github.com/micro-manager/pycro-manager">Pycro-Manager: open-source software for customized and reproducible microscope control</a>. <span class="venue">Nature Methods 2021.</span></li>
+</ol>
+<h3>Testing and failure search</h3>
+<ol class="refs" start="4">
+  <li>Dreossi et al. <a href="https://arxiv.org/abs/1902.04245">VerifAI: A Toolkit for the Formal Design and Analysis of Artificial Intelligence-Based Systems</a>. <span class="venue">CAV 2019.</span></li>
+  <li>Abdessalem, Nejati, Briand, Stifter. <a href="https://orbilu.uni.lu/handle/10993/33706">Testing Vision-Based Control Systems Using Learnable Evolutionary Algorithms</a>. <span class="venue">ICSE 2018.</span></li>
+  <li>Gotovos et al. <a href="https://www.ijcai.org/Abstract/13/202">Active Learning for Level Set Estimation</a>. <span class="venue">IJCAI 2013.</span> Finds the boundary between good and bad regions.</li>
+  <li>Tian et al. <a href="https://arxiv.org/abs/1708.08559">DeepTest: Automated Testing of Deep-Neural-Network-Driven Autonomous Cars</a>. <span class="venue">ICSE 2018.</span></li>
+  <li>Pei et al. <a href="https://arxiv.org/abs/1705.06640">DeepXplore: Automated Whitebox Testing of Deep Learning Systems</a>. <span class="venue">SOSP 2017.</span></li>
+  <li>Mouret, Clune. <a href="https://arxiv.org/abs/1504.04909">Illuminating Search Spaces by Mapping Elites</a> (MAP-Elites). <span class="venue">2015.</span></li>
+  <li>Baek et al. <a href="https://openaccess.thecvf.com/content/CVPR2024/html/Baek_Unexplored_Faces_of_Robustness_and_Out-of-Distribution_Covariate_Shifts_in_Environment_CVPR_2024_paper.html">Unexplored Faces of Robustness and Out-of-Distribution: Covariate Shifts in Environment and Sensor Domains (ImageNet-ES)</a>. <span class="venue">CVPR 2024.</span> About 202k photos taken while physically varying light and camera settings; very close in spirit to this project.</li>
+</ol>
+<h3>Optimization, sampling and focus</h3>
+<ol class="refs" start="11">
+  <li>Balandat et al. <a href="https://arxiv.org/abs/1910.06403">BoTorch: A Framework for Efficient Monte-Carlo Bayesian Optimization</a>. <span class="venue">NeurIPS 2020.</span></li>
+  <li>Shahriari et al. <a href="https://doi.org/10.1109/JPROC.2015.2494218">Taking the Human Out of the Loop: A Review of Bayesian Optimization</a>. <span class="venue">Proceedings of the IEEE 2016.</span></li>
+  <li>Pertuz, Puig, Garc&iacute;a. <a href="https://doi.org/10.1016/j.patcog.2012.11.011">Analysis of Focus Measure Operators for Shape-from-Focus</a>. <span class="venue">Pattern Recognition 2013.</span></li>
+  <li>Garrido-Jurado et al. <a href="https://doi.org/10.1016/j.patcog.2014.01.005">Automatic Generation and Detection of Highly Reliable Fiducial Markers under Occlusion</a> (ArUco). <span class="venue">Pattern Recognition 2014.</span></li>
+</ol>
+
+<h2>Prerequisites</h2>
+<ul>
+  <li><strong>Required:</strong> prior knowledge of computer vision or image processing, from a completed course or a significant project, and experience with <a href="https://opencv.org/">OpenCV</a> and <a href="https://numpy.org/">NumPy</a>.</li>
+  <li><strong>Required:</strong> strong Python and software engineering skills.</li>
+  <li><strong>Required:</strong> availability for scheduled on-site lab visits.</li>
+  <li><strong>Recommended:</strong> interest in hardware and hands-on work; a course in optimization or machine learning.</li>
+</ul>
+
+<footer>HIT &times; Samsung joint student projects, academic year 2026/27. Supervisor: Alexander Apartsin (HIT). Samsung mentor: to be assigned.</footer>
+</main>
+</body>
+</html>
