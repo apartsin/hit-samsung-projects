@@ -12,7 +12,7 @@
 <header class="masthead">
 <div class="crumbs"><a href="index.html">HIT &times; Samsung projects</a> / Project 2</div>
 <h1>RAW Sensor Digital Twin</h1>
-<p class="lede">A neural model that predicts the exact <a href="https://en.wikipedia.org/wiki/Raw_image_format">RAW</a> mosaic a given camera sensor would record, before <a href="https://en.wikipedia.org/wiki/Demosaicing">demosaicing</a>, from an input image, the capture conditions, and the sensor and lens parameters.</p>
+<p class="lede">A neural model that predicts the exact <a href="https://en.wikipedia.org/wiki/Raw_image_format">RAW</a> color filter array (CFA) data a given camera sensor would record, before <a href="https://en.wikipedia.org/wiki/Demosaicing">demosaicing</a>, from an input image, the capture conditions, and the sensor and lens parameters.</p>
 
 <dl class="facts">
   <div><dt>Credit</dt><dd>7 points</dd></div>
@@ -33,7 +33,7 @@
   <p>&bull; <strong>Capture conditions:</strong> <a href="https://en.wikipedia.org/wiki/Shutter_speed">exposure time</a>, ISO (analog gain), <a href="https://en.wikipedia.org/wiki/F-number">f-number</a>, <a href="https://en.wikipedia.org/wiki/Focal_length">focal length</a>, <a href="https://en.wikipedia.org/wiki/Standard_illuminant">illuminant</a> and <a href="https://en.wikipedia.org/wiki/Color_temperature">color temperature</a>, scene brightness.</p>
   <p>&bull; <strong>Sensor parameters:</strong> <a href="https://en.wikipedia.org/wiki/Color_filter_array">CFA</a> pattern, pixel pitch, <a href="https://en.wikipedia.org/wiki/Spectral_sensitivity">spectral sensitivity</a>, <a href="https://en.wikipedia.org/wiki/Active-pixel_sensor">full-well capacity</a>, <a href="https://en.wikipedia.org/wiki/Image_noise">read noise</a>, <a href="https://en.wikipedia.org/wiki/Dark_current_(physics)">dark current</a>, black level, bit depth.</p>
   <p>&bull; <strong>Optics parameters:</strong> lens blur (<a href="https://en.wikipedia.org/wiki/Point_spread_function">PSF</a> or <a href="https://en.wikipedia.org/wiki/Optical_transfer_function">MTF</a>), <a href="https://en.wikipedia.org/wiki/Vignetting">vignetting</a>, <a href="https://en.wikipedia.org/wiki/Chromatic_aberration">chromatic aberration</a>.</p>
-  <p><strong>Output:</strong> a single-channel RAW Bayer mosaic with realistic signal, clipping, <a href="https://en.wikipedia.org/wiki/Quantization_(image_processing)">quantization</a> and noise, matching what the real sensor produces. Each pixel holds <strong>one number</strong> (typically 10 to 14 bits), the light measured through its own red, green or blue filter; the other two colors at that pixel do not exist yet and are only filled in later by demosaicing.</p>
+  <p><strong>Output:</strong> RAW CFA data: a single-channel Bayer mosaic with realistic signal, clipping, <a href="https://en.wikipedia.org/wiki/Quantization_(image_processing)">quantization</a> and noise, matching what the real sensor produces. Each pixel holds <strong>one number</strong> (typically 10 to 14 bits), the light measured through its own red, green or blue filter; the other two colors at that pixel do not exist yet and are only filled in later by demosaicing.</p>
 </div>
 
 <p>The project combines two worlds: a <strong>physics model</strong> of the camera (light falling off at the edges, the response of each color channel, shot and read noise, clipping) and a <strong>learned model</strong> that corrects what the physics misses. The physics part keeps the output plausible for unseen settings; the learned part makes it match real data.</p>
