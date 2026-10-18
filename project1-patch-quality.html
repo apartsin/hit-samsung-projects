@@ -33,7 +33,12 @@
   <p><strong>Output per image:</strong> six heat maps and an overall score pooled from the patches.</p>
 </div>
 
-<p>The training data is mostly <strong><a href="https://en.wikipedia.org/wiki/Synthetic_data">synthetic</a></strong>: clean, high quality images are degraded with distortions of a known type and strength, so every patch gets an exact label for free. The model is then calibrated and tested on public datasets with human opinion scores and on real smartphone photos.</p>
+<p>The model is trained and tested on three sources of data:</p>
+<ul>
+  <li><strong><a href="https://en.wikipedia.org/wiki/Synthetic_data">Synthetic</a> patches:</strong> clean, high quality images degraded with distortions of a known type and strength, so every patch gets an exact label for free.</li>
+  <li><strong>Real public patches:</strong> public quality datasets with human opinion scores, including patch-level scores (PaQ-2-PiQ) and per-attribute ratings of smartphone photos (SPAQ, KonIQ++).</li>
+  <li><strong>Proprietary Samsung dataset:</strong> real camera images provided by Samsung, used to adapt and validate the model on the target cameras and distortions.</li>
+</ul>
 
 <h3>The five distortion families</h3>
 <div class="table-wrap"><table>
@@ -58,7 +63,7 @@
   <li>A <strong>distortion synthesis library</strong> in <a href="https://www.python.org/">Python</a>: one function per distortion, each with a strength parameter mapped to a 0 to 1 severity, able to mix several distortions and apply them locally (to a region) as well as globally.</li>
   <li>A <strong>training set</strong> generated from clean images, with per patch labels.</li>
   <li>A <strong><a href="https://en.wikipedia.org/wiki/Multi-task_learning">multi-head</a> model</strong> that outputs the six scores per patch, and a script that produces heat maps for a full image.</li>
-  <li>An <strong>evaluation report</strong>: accuracy on synthetic test data, correlation with human scores on public datasets, and a qualitative study on real smartphone photos.</li>
+  <li>An <strong>evaluation report</strong>: accuracy on synthetic test data, correlation with human scores on public datasets, and results on the proprietary Samsung dataset.</li>
   <li>Optional: an <strong>on-device version</strong> (<a href="https://onnx.ai/">ONNX</a> or <a href="https://ai.google.dev/edge/litert">TFLite</a>) with measured run time on a phone.</li>
 </ol>
 
